@@ -1,5 +1,7 @@
 import xml.etree.ElementTree as ET
 from keras.preprocessing.text import text_to_word_sequence
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing import sequence
 import numpy as np
 from keras import layers
 from keras.models import Sequential
@@ -18,6 +20,14 @@ def get_sentences( tree ):
     for s in sent:
         sentences.append( s.find( 'text' ).text )
     return sentences
+
+def process_sentences( sentences ):
+    tokenizer = Tokenizer( num_words=20000 )
+    tokenizer.fit_on_texts( sentences )
+    sentences_indexed = tokenizer.texts_to_sequences( sentences )
+    sentences_padded = sequence.pad_sequences( sentences_indexed, maxlen=MAX_SEQ_LENGTH, padding='post' )
+    return sentences_padded
+
 
 def get_output( tree ):
     corpus = tree.getroot()
@@ -69,12 +79,14 @@ def get_paper_model( input_shape ):
 
 
 if __name__ == "__main__":
-    MAX_SEQ_LENGTH = 69
+    MAX_SEQ_LENGTH = 65
+    EMBEDDING_SIZE = 300
     tree = ET.parse(  "laptops-trial.xml" )
     sentences = get_sentences( tree )
+    sentences_processed = process_sentences( sentences )
     train_out = get_output( tree )
 
-    model = get_paper_model( (65,300))
+    model = get_paper_model( (MAX_SEQ_LENGTH,EMBEDDING_SIZE))
 
     print( sentences[1])
     print( train_out[1])
