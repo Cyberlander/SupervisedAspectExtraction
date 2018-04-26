@@ -5,9 +5,11 @@ from keras import layers
 from keras.models import Sequential
 from keras.layers.pooling import MaxPooling1D
 from keras.optimizers import Adam, RMSprop, SGD
+from keras.layers.core import Activation
+from keras.regularizers import l2
 
 
-MAX_SEQ_LENGTH = 69
+
 
 def get_sentences( tree ):
     corpus = tree.getroot()
@@ -47,21 +49,32 @@ def get_output( tree ):
 
 
     return train_output
-"""
-def get_model( input_shape ):
-    model = models.Sequential()
-    model.add( layers.Conv1d( 50, kernel_size=(1,5), input_shape=input_shape))
-    model.add( MaxPooling1D() )
-    model.add(Flatten())
-    model.add(Dense(MAX_SEQ_LENGTH))
-    model.compile()
-    return model"""
+
+def get_paper_model( input_shape ):
+    model = Sequential()
+    # first layer with 100 feature map with filter size 2
+    model.add( layers.Conv1D( 100, 2,strides=1, input_shape=input_shape))
+    model.add( Activation( 'tanh' ) )
+    model.add( MaxPooling1D( pool_size=2, strides=1 ) )
+    # first layer with 100 feature map with filter size 2
+    model.add( layers.Conv1D( 50, 3, strides=1,kernel_regularizer=l2(0.01) ) )
+    model.add( Activation( 'tanh' ) )
+    model.add( MaxPooling1D( pool_size=2, strides=1  ) )
+    model.add( layers.Dropout( 0.2 ) )
+    model.add( layers.Flatten())
+    model.add( layers.Dense( MAX_SEQ_LENGTH, activation='softmax') )
+    model.add( Activation( 'softmax' ) )
+    model.compile( loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'] )
+    return model
 
 
 if __name__ == "__main__":
+    MAX_SEQ_LENGTH = 69
     tree = ET.parse(  "laptops-trial.xml" )
     sentences = get_sentences( tree )
     train_out = get_output( tree )
+
+    model = get_paper_model( (65,300))
 
     print( sentences[1])
     print( train_out[1])
