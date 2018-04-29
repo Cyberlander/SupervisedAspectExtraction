@@ -9,6 +9,9 @@ from keras.layers.pooling import MaxPooling1D
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.layers.core import Activation
 from keras.regularizers import l2
+from keras.layers.embeddings import Embedding
+import modules.vector_representations
+from sklearn.model_selection import train_test_split
 
 
 
@@ -22,7 +25,7 @@ def get_sentences( tree ):
     return sentences
 
 def process_sentences( sentences ):
-    tokenizer = Tokenizer( num_words=20000 )
+    tokenizer = Tokenizer( num_words=TOP_WORDS )
     tokenizer.fit_on_texts( sentences )
     sentences_indexed = tokenizer.texts_to_sequences( sentences )
     sentences_padded = sequence.pad_sequences( sentences_indexed, maxlen=MAX_SEQ_LENGTH, padding='post' )
@@ -63,6 +66,7 @@ def get_output( tree ):
 def get_paper_model( input_shape ):
     model = Sequential()
     # first layer with 100 feature map with filter size 2
+    #model.add( layers.Conv1D( 100, 2,strides=1 ))
     model.add( layers.Conv1D( 100, 2,strides=1, input_shape=input_shape))
     model.add( Activation( 'tanh' ) )
     model.add( MaxPooling1D( pool_size=2, strides=1 ) )
@@ -81,12 +85,26 @@ def get_paper_model( input_shape ):
 if __name__ == "__main__":
     MAX_SEQ_LENGTH = 65
     EMBEDDING_SIZE = 300
-    tree = ET.parse(  "laptops-trial.xml" )
+    TOP_WORDS = 20000
+    #TRAIN_DATA_PATH = "laptops_train/Laptops_Train.xml"
+    TRAIN_DATA_PATH = "datasets/Restaurants_Train.xml"
+    WORD2VEC_MODEL = "word2vec_models/restaurant_300features_1minword_5context"
+    tree = ET.parse( TRAIN_DATA_PATH  )
     sentences = get_sentences( tree )
     sentences_processed = process_sentences( sentences )
-    train_out = get_output( tree )
 
+    sentences_words = modules.vector_representations.get_sentences_as_wordlists( TRAIN_DATA_PATH )
+    word2vec_model = modules.vector_representations.get_word2vec_model( WORD2VEC_MODEL  )
+    X_data = modules.vector_representations.get_word2vec_vectors( sentences_words, MAX_SEQ_LENGTH, EMBEDDING_SIZE, word2vec_model )
+    y_data = np.array( get_output( tree ) )
+
+
+    X_train, X_test, y_train, y_test = train_test_split( X_data, y_data, test_size=0.1, random_state=42)
     model = get_paper_model( (MAX_SEQ_LENGTH,EMBEDDING_SIZE))
+    #model.fit( X_train, y_train, epochs=3, batch_size=50, shuffle=True, validation_data=(X_test, y_test) )
+    model.fit( X_data, y_data, epochs=30, batch_size=50 )
 
-    print( sentences[1])
-    print( train_out[1])
+    index = 10
+    print( sentences_words[index])
+    print( model.predict(X_data[index].reshape(1,65,300)))
+    print( y_data[index])
