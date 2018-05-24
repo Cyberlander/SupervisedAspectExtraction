@@ -2,6 +2,8 @@ import xml.etree.ElementTree as ET
 from keras.preprocessing.text import text_to_word_sequence
 from gensim.models import word2vec
 from gensim.models import Word2Vec
+import gensim.models.keyedvectors as word2vec
+from nltk.corpus import stopwords
 import numpy as np
 
 def get_sentences( path ):
@@ -35,8 +37,11 @@ def train_word2vec_model( sentences_path ):
     model_name = "../300features_1minword_5context"
     model.save( model_name )
 
-def get_word2vec_model( path ):
-    model = Word2Vec.load( path )
+def get_word2vec_model( path, is_binary ):
+    if is_binary==False:
+        model = Word2Vec.load( path )
+    else:
+        model = word2vec.KeyedVectors.load_word2vec_format(path, binary=True)
     return model
 
 def get_word2vec_vectors( sentences_as_word_lists, seq_len, embedding_dim, word2vec_model ):
@@ -45,7 +50,11 @@ def get_word2vec_vectors( sentences_as_word_lists, seq_len, embedding_dim, word2
     for i,sentence in enumerate( sentences_as_word_lists ):
         sentence = sentence[:65]
         for j, word in enumerate( sentence ):
-            word_vector =word2vec_model.wv[word]
+            if word in word2vec_model.wv.vocab:
+                word_vector = word2vec_model.wv[word]
+            else:
+                word_vector = np.ones(300)
+
             data_matrix[i,j] = word_vector
     return data_matrix
 
