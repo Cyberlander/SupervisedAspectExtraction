@@ -13,6 +13,7 @@ from keras.layers.embeddings import Embedding
 import modules.vector_representations
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from gensim.models import KeyedVectors
 import collections
 
 
@@ -66,12 +67,9 @@ def get_output( tree ):
 
 def get_paper_model( input_shape ):
     model = Sequential()
-    # first layer with 100 feature map with filter size 2
-    #model.add( layers.Conv1D( 100, 2,strides=1 ))
     model.add( layers.Conv1D( 200, 2,strides=1, input_shape=input_shape))
     model.add( Activation( 'tanh' ) )
     model.add( MaxPooling1D( pool_size=2, strides=1 ) )
-    # first layer with 100 feature map with filter size 2
     model.add( layers.Conv1D( 100, 3, strides=1,kernel_regularizer=l2(0.01) ) )
     model.add( Activation( 'tanh' ) )
     model.add( MaxPooling1D( pool_size=2, strides=1  ) )
@@ -83,45 +81,6 @@ def get_paper_model( input_shape ):
     model.summary()
     return model
 
-def get_embedding_model( input_shape ):
-    model = Sequential()
-    model.add( Embedding( top_words, embedding_vector_length, input_length=FLAGS.max_sentence_length ))
-    model.add( layers.Conv1D( 200, 2,strides=1, input_shape=input_shape))
-    model.add( Activation( 'tanh' ) )
-    model.add( MaxPooling1D( pool_size=2, strides=1 ) )
-    # first layer with 100 feature map with filter size 2
-    model.add( layers.Conv1D( 100, 3, strides=1,kernel_regularizer=l2(0.01) ) )
-    model.add( Activation( 'tanh' ) )
-    model.add( MaxPooling1D( pool_size=2, strides=1  ) )
-    model.add( layers.Dropout( 0.2 ) )
-    model.add( layers.Flatten())
-    model.add( layers.Dense( MAX_SEQ_LENGTH, activation='softmax') )
-    sgd = SGD(lr=0.001, decay=1e-6, momentum=0.5, nesterov=True)
-    model.compile( loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'] )
-    model.summary()
-    return model
-
-def get_deep_model( input_shape ):
-    model = Sequential()
-    # first layer with 100 feature map with filter size 2
-    #model.add( layers.Conv1D( 100, 2,strides=1 ))
-    model.add( layers.Conv1D( 100, 2,strides=1, input_shape=input_shape))
-    model.add( Activation( 'tanh' ) )
-    model.add( MaxPooling1D( pool_size=2, strides=1 ) )
-    # first layer with 100 feature map with filter size 2
-    model.add( layers.Conv1D( 50, 3, strides=1,kernel_regularizer=l2(0.01) ) )
-    model.add( Activation( 'tanh' ) )
-    model.add( MaxPooling1D( pool_size=2, strides=1  ) )
-    model.add( layers.Conv1D( 25, 2, strides=1,kernel_regularizer=l2(0.01) ) )
-    model.add( Activation( 'tanh' ) )
-    model.add( MaxPooling1D( pool_size=2, strides=1  ) )
-    model.add( layers.Dropout( 0.2 ) )
-    model.add( layers.Flatten())
-    model.add( layers.Dense( MAX_SEQ_LENGTH, activation='softmax') )
-    sgd = SGD(lr=0.001, decay=1e-6, momentum=0.5, nesterov=True)
-    model.compile( loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'] )
-    model.summary()
-    return model
 
 def compute_accuracy_once(y,y_pred):
     accuracy = 0
@@ -146,7 +105,10 @@ def compute_accuracy(y, y_pred):
         accuracy_collected.append( compute_accuracy_once(y[i],y_pred[i]) )
     return np.mean( accuracy_collected )
 
-
+def get_sentences_as_wordlists( path ):
+    sentences  = get_sentences( path )
+    sentences_as_word_list = [ text_to_word_sequence(s) for s in sentences]
+    return sentences_as_word_list
 
 
 
@@ -154,24 +116,23 @@ if __name__ == "__main__":
     MAX_SEQ_LENGTH = 65
     EMBEDDING_SIZE = 300
     TOP_WORDS = 20000
-    EPOCHS = 500
-    numpy.random.seed(7)
+    EPOCHS = 250
     #TRAIN_DATA_PATH = "laptops_train/Laptops_Train.xml"
     TRAIN_DATA_PATH = "datasets/Restaurants_Train.xml"
-    WORD2VEC_MODEL = "word2vec_models/GoogleNews-vectors-negative300.bin"
+    FASTTEXT_MODEL = "fasttext_vectors/wiki.en.vec"
     tree = ET.parse( TRAIN_DATA_PATH  )
     sentences = get_sentences( tree )
     sentences_processed = process_sentences( sentences )
 
     sentences_words = modules.vector_representations.get_sentences_as_wordlists( TRAIN_DATA_PATH )
-    word2vec_model = modules.vector_representations.get_word2vec_model( WORD2VEC_MODEL, True  )
-    X_data = modules.vector_representations.get_word2vec_vectors( sentences_words, MAX_SEQ_LENGTH, EMBEDDING_SIZE, word2vec_model )
+    en_model = KeyedVectors.load_word2vec_format( FASTTEXT_MODEL )
+
+    X_data = modules.vector_representations.get_fasttext_vectors( sentences_words, MAX_SEQ_LENGTH, EMBEDDING_SIZE, en_model )
     y_data = np.array( get_output( tree ) )
 
 
     X_train, X_test, y_train, y_test = train_test_split( X_data, y_data, test_size=0.1, random_state=42)
     model = get_paper_model( (MAX_SEQ_LENGTH,EMBEDDING_SIZE))
-    #model = get_deep_model( (MAX_SEQ_LENGTH,EMBEDDING_SIZE))
     #model.fit( X_train, y_train, epochs=EPOCHS, batch_size=50, validation_data=(X_test, y_test) )
     model.fit( X_data, y_data, epochs=EPOCHS, batch_size=50 )
 
